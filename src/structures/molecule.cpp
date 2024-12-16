@@ -1,3 +1,4 @@
+#include <fmt/core.h>
 #include <queue>
 #include <utility>
 #include <tuple>
@@ -72,24 +73,51 @@ int Molecule::degree(const Atom &atom) const {
     }
     return sum;
 }
-
-
-std::vector<size_t> Molecule::get_bonded(size_t atom_idx) const {
+    
+void Molecule::precompute_bond_adjacency_lists() {
     const size_t n = atoms_->size();
-    std::vector<size_t> res;
-
-    for (size_t j = 0; j < n; j++) {
-        if (bond_info_[atom_idx * n + j]) {
-            res.push_back(static_cast<size_t>(j));
+    bond_adjacency_lists_.resize(n);
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = 0; j < n; j++) {
+            if (bond_info_[i * n + j]) {
+                bond_adjacency_lists_[i].push_back(j);
+            }
         }
     }
-    return res;
 }
+
+const std::vector<size_t>& Molecule::get_bonded(size_t atom_idx){
+    if (bond_adjacency_lists_.empty()) {
+        precompute_bond_adjacency_lists();
+    }
+
+    return bond_adjacency_lists_[atom_idx];
+}
+
+// std::vector<size_t> Molecule::get_bonded(size_t atom_idx) const {
+//     const size_t n = atoms_->size();
+//     std::vector<size_t> res;
+
+//     for (size_t j = 0; j < n; j++) {
+//         if (bond_info_[atom_idx * n + j]) {
+//             res.push_back(static_cast<size_t>(j));
+//         }
+//     }
+//     return res;
+// }
 
 
 void Molecule::init_bond_info() {
     const size_t n = atoms_->size();
+    
+    auto file = fopen("/tmp/atomic-logs/atomic-log.log", "a");
+
+    fmt::print(file, "Atom count: {}\n", n);
+    fmt::print(file, "n * n = {}\n", n * n);
+    
     bond_info_.resize(n * n);
+
+    fmt::print(file, "Resize successful\n");
 
     for (const auto &bond: *bonds_) {
         size_t i = bond.first().index();
@@ -98,13 +126,34 @@ void Molecule::init_bond_info() {
         bond_info_[i * n + j] = order;
         bond_info_[j * n + i] = order;
     }
+
+    fclose(file);
 }
 
 
 void Molecule::init_bond_distances() {
     const size_t n = atoms_->size();
+
+    auto file = fopen("/tmp/atomic-logs/atomic-log.log", "a");
+
+    auto resize_start = std::chrono::high_resolution_clock::now();
+    fmt::print(file, "Resizing bond distances for molecule: {}\n", name());
+
     bond_distances_.resize(n * n);
+    
+    auto resize_end = std::chrono::high_resolution_clock::now();
+    fmt::print(file, "Resizing bond distances took: {}ms\n", std::chrono::duration_cast<std::chrono::milliseconds>(resize_end - resize_start).count());
+
+    auto fill_start = std::chrono::high_resolution_clock::now();
+    fmt::print(file, "Filling bond distances for molecule: {}\n", name());
+
     std::fill(bond_distances_.begin(), bond_distances_.end(), -1);
+
+    auto fill_end = std::chrono::high_resolution_clock::now();
+    fmt::print(file, "Filling bond distances took: {}ms\n", std::chrono::duration_cast<std::chrono::milliseconds>(fill_end - fill_start).count());
+
+    auto start = std::chrono::high_resolution_clock::now();
+    fmt::print(file, "Calculating bond distances for molecule: {}\n", name());
 
     for (size_t i = 0; i < n; i++) {
         auto q = std::queue<size_t>();
@@ -121,6 +170,11 @@ void Molecule::init_bond_distances() {
             }
         }
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    fmt::print(file, "Calculating bond distances took: {}ms\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+
+    fclose(file);
 }
 
 

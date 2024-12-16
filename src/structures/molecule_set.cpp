@@ -1,3 +1,4 @@
+#include <fmt/core.h>
 #include <map>
 #include <algorithm>
 #include <memory>
@@ -5,6 +6,7 @@
 #include <string>
 #include <type_traits>
 #include <fmt/format.h>
+#include <omp.h>
 
 #include "chargefw2.h"
 #include "molecule.h"
@@ -44,7 +46,9 @@ void MoleculeSet::info() const {
     }
 
     fmt::print("Number of atoms: {}\n", n_atoms);
+    fmt::print("Counts: {}\n", counts.size());
     for (auto &[key, val]: counts) {
+        fmt::print("size {}\n", atom_types_.size());
         auto[symbol, cls, type] = atom_types_[key];
         fmt::print("{:2s} {:6s} {:4s}: {}\n", symbol, cls, type, val);
     }
@@ -302,12 +306,27 @@ size_t MoleculeSet::classify_set_from_parameters(const Parameters &parameters, b
 
 
 void MoleculeSet::fulfill_requirements(const std::vector<RequiredFeatures> &features) {
+    auto file = fopen("/tmp/atomic-logs/atomic-log.log", "a");
+    fmt::print(file, "Number of available threads: {}\n", omp_get_max_threads());
     for (const auto req: features) {
         switch (req) {
             case RequiredFeatures::BOND_DISTANCES: {
                 for (auto &molecule: *molecules_) {
+                    auto start_bond = std::chrono::high_resolution_clock::now();
+                    fmt::print(file, "Init bond info for molecule: {}\n", molecule.name());
+                    
                     molecule.init_bond_info();
+
+                    auto end_bond = std::chrono::high_resolution_clock::now();
+                    fmt::print(file, "Init bond info took: {}ms\n", std::chrono::duration_cast<std::chrono::milliseconds>(end_bond - start_bond).count());
+
+                    auto start_dist = std::chrono::high_resolution_clock::now();
+                    fmt::print(file, "Init bond distances for molecule: {}\n", molecule.name());
+                    
                     molecule.init_bond_distances();
+
+                    auto end_dist = std::chrono::high_resolution_clock::now();
+                    fmt::print(file, "Init bond distances took: {}ms\n", std::chrono::duration_cast<std::chrono::milliseconds>(end_dist - start_dist).count());
                 }
                 break;
             }
@@ -321,12 +340,19 @@ void MoleculeSet::fulfill_requirements(const std::vector<RequiredFeatures> &feat
 
             case RequiredFeatures::DISTANCE_TREE: {
                 for (auto &molecule: *molecules_) {
+                    auto start_tree = std::chrono::high_resolution_clock::now();
+                    fmt::print(file, "Init distance tree for molecule: {}\n", molecule.name());
+
                     molecule.init_distance_tree();
+
+                    auto end_tree = std::chrono::high_resolution_clock::now();
+                    fmt::print(file, "Init distance tree took: {}ms\n", std::chrono::duration_cast<std::chrono::milliseconds>(end_tree - start_tree).count());
                 }
                 break;
             }
         }
     }
+    fclose(file);
 }
 
 
