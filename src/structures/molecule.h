@@ -26,18 +26,22 @@ class Molecule {
     std::unique_ptr<std::vector<Bond> > bonds_;
     std::vector<int> max_hbo_{};
     std::vector<std::string> neighbour_elements_{};
+    std::vector<std::vector<size_t>> bond_adjacency_lists_{};
     std::vector<char> bond_info_{};
     std::vector<int> bond_distances_{};
     std::unique_ptr<kdtree_t> index_{nullptr};
     std::unique_ptr<AtomKDTreeAdaptor> adaptor_{nullptr};
 
-    [[nodiscard]] std::vector<size_t> get_bonded(size_t atom_idx) const;
+    // [[nodiscard]] std::vector<size_t> get_bonded(size_t atom_idx) const;
+    [[nodiscard]] const std::vector<size_t>& get_bonded(size_t atom_idx);
 
     void init_bond_info();
 
     void init_bond_distances();
 
     void init_distance_tree();
+
+    void precompute_bond_adjacency_lists();
 
 public:
     [[nodiscard]] const std::vector<Atom> &atoms() const { return *atoms_; }
