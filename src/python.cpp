@@ -98,7 +98,7 @@ std::vector<std::string> get_available_methods() {
     json j;
     std::ifstream f(filename);
     if (!f) {
-        throw FileException("Cannot open file: " + filename);
+        throw FileException(fmt::format("Cannot open file: {}", filename));
     }
 
     f >> j;
