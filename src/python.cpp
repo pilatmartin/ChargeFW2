@@ -81,8 +81,6 @@ Molecules::Molecules(const std::string &filename, bool read_hetatm = true, bool 
     if (ms.molecules().empty()) {
         throw std::runtime_error("No molecules were loaded from the input file");
     }
-
-    ms.fulfill_requirements({RequiredFeatures::DISTANCE_TREE, RequiredFeatures::BOND_DISTANCES});
 }
 
 
@@ -177,6 +175,9 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
     }
 
     auto method = (*get_method_handle)();
+
+    molecules.ms.fulfill_requirements(method->get_requirements());
+
     std::unique_ptr<Parameters> parameters;
     if (method->has_parameters()) {
         if (!parameters_name.has_value()) {
