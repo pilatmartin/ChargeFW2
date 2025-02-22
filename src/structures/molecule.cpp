@@ -73,17 +73,26 @@ int Molecule::degree(const Atom &atom) const {
     return sum;
 }
 
-
-std::vector<size_t> Molecule::get_bonded(size_t atom_idx) const {
+    
+void Molecule::precompute_bond_adjacency_lists() {
     const size_t n = atoms_->size();
-    std::vector<size_t> res;
-
-    for (size_t j = 0; j < n; j++) {
-        if (bond_info_[atom_idx * n + j]) {
-            res.push_back(static_cast<size_t>(j));
+    bond_adjacency_lists_.resize(n);
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = 0; j < n; j++) {
+            if (bond_info_[i * n + j]) {
+                bond_adjacency_lists_[i].push_back(j);
+            }
         }
     }
-    return res;
+}
+
+
+const std::vector<size_t>& Molecule::get_bonded(size_t atom_idx) {
+    if (bond_adjacency_lists_.empty()) {
+        precompute_bond_adjacency_lists();
+    }
+
+    return bond_adjacency_lists_[atom_idx];
 }
 
 
