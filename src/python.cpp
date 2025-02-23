@@ -8,6 +8,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 #include <nlohmann/json.hpp>
+#include <vector>
 
 #include "formats/cif.h"
 #include "formats/txt.h"
@@ -23,15 +24,16 @@ namespace fs = std::filesystem;
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-
 std::map<std::string, std::vector<double>>
 calculate_charges(struct Molecules &molecules, const std::string &method_name, std::optional<const std::string> &parameters_name, std::optional<const std::string> &chg_out_dir);
 
-std::vector<std::string> get_available_methods();
+std::vector<py::dict> get_available_methods();
 
 std::vector<std::string> get_available_parameters(const std::string &method_name);
 
 std::vector<std::tuple<std::string, std::vector<std::string>>> get_sutaible_methods_python(struct Molecules &molecules);
+
+py::dict get_parameters_metadata(const std::string &parameters_name);
 
 py::dict atom_type_count_to_dict(const MoleculeSetStats::AtomTypeCount &atom_type_count);
 
@@ -62,14 +64,13 @@ Molecules::Molecules(const std::string &filename, bool read_hetatm = true, bool 
     }
 }
 
-
 size_t Molecules::length() const {
     return ms.molecules().size();
 }
 
 
-std::vector<std::string> get_available_methods() {
-    std::vector<std::string> results;
+std::vector<py::dict> get_available_methods() {
+    std::vector<py::dict> results;
     std::string filename = fs::path(INSTALL_DIR) / "share" / "methods.json";
     using json = nlohmann::json;
     json j;
@@ -82,8 +83,19 @@ std::vector<std::string> get_available_methods() {
     f.close();
 
     for (const auto &method_info: j["methods"]) {
-        auto method_name = method_info["internal_name"].get<std::string>();
-        results.emplace_back(method_name);
+        std::optional<std::string> publication;
+        if (!method_info["publication"].is_null()) {
+            publication = method_info["publication"].get<std::string>();
+        }
+        
+        results.emplace_back(py::dict(
+            py::arg("name") = method_info["name"].get<std::string>(),
+            py::arg("internal_name") = method_info["internal_name"].get<std::string>(),
+            py::arg("full_name") = method_info["full_name"].get<std::string>(),
+            py::arg("publication") = publication,
+            py::arg("type") = method_info["type"].get<std::string>(),
+            py::arg("has_parameters") = method_info["has_parameters"].get<bool>()
+        ));
     }
 
     return results;
@@ -131,7 +143,32 @@ std::vector<std::string> get_available_parameters(const std::string &method_name
 }
 
 std::vector<std::tuple<std::string, std::vector<std::string>>> get_sutaible_methods_python(struct Molecules &molecules) {
-    return get_suitable_methods(molecules.ms, molecules.ms.has_proteins(), false);
+    return get_suitable_methods(molecules.ms, molecules.ms.has_proteins(), false);    
+}
+
+py::dict get_parameters_metadata(const std::string &parameters_name) {
+    auto normalized_params_name = parameters_name;
+    if (normalized_params_name.ends_with(".json")) {
+        // allow to provide name with or without extension
+        normalized_params_name = normalized_params_name.substr(0, normalized_params_name.size() - 5);
+    }
+
+    std::string parameters_file = fs::path(INSTALL_DIR) / "share" / "parameters" / (normalized_params_name + ".json");
+    using json = nlohmann::json;
+    json j;
+    std::ifstream f(parameters_file);
+    if (!f) {
+        throw FileException(fmt::format("Cannot open file: {}", parameters_file));
+    }
+
+    f >> j;
+    f.close();
+
+    return py::dict(
+        py::arg("name") = j["metadata"]["name"].get<std::string>(),
+        py::arg("publication") = j["metadata"]["publication"].get<std::string>(),
+        py::arg("internal_name") = normalized_params_name
+    );
 }
 
 
@@ -205,6 +242,7 @@ void save_charges(const Molecules &molecules, const Charges &charges, const std:
     TXT().save_charges(molecules.ms, charges, dir / std::filesystem::path(txt_str));
 }
 
+
 PYBIND11_MODULE(chargefw2, m) {
     m.doc() = "Python bindings to ChargeFW2";
     py::class_<MoleculeSetStats::AtomTypeCount>(m, "AtomTypeCount")
@@ -234,6 +272,7 @@ PYBIND11_MODULE(chargefw2, m) {
     m.def("get_available_parameters", &get_available_parameters, "method_name"_a,
           "Return the list of all parameters of a given method");
     m.def("get_suitable_methods", &get_sutaible_methods_python, "molecules"_a, "Get methods and parameters that are suitable for a given set of molecules");
+    m.def("get_parameters_metadata", &get_parameters_metadata, "parameters_name"_a);
     m.def("calculate_charges", &calculate_charges, "molecules"_a, "method_name"_a, py::arg("parameters_name") = py::none(), py::arg("chg_out_dir") = py::none(),
           "Calculate partial atomic charges for a given molecules and method", py::call_guard<py::gil_scoped_release>());
 }
