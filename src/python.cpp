@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "formats/cif.h"
+#include "formats/mol2.h"
+#include "formats/pqr.h"
 #include "formats/txt.h"
 #include "structures/molecule_set.h"
 #include "formats/reader.h"
@@ -87,7 +89,7 @@ std::vector<py::dict> get_available_methods() {
         if (!method_info["publication"].is_null()) {
             publication = method_info["publication"].get<std::string>();
         }
-        
+
         results.emplace_back(py::dict(
             py::arg("name") = method_info["name"].get<std::string>(),
             py::arg("internal_name") = method_info["internal_name"].get<std::string>(),
@@ -175,7 +177,7 @@ py::dict get_parameters_metadata(const std::string &parameters_name) {
 std::map<std::string, std::vector<double>>
 calculate_charges(struct Molecules &molecules, const std::string &method_name, std::optional<const std::string> &parameters_name, std::optional<const std::string> &chg_out_dir) {
     config::chg_out_dir = chg_out_dir.value_or(".");
-    
+
     std::string method_file = fs::path(INSTALL_DIR) / "lib" / ("lib" + method_name + ".so");
     auto handle = dlopen(method_file.c_str(), RTLD_LAZY);
 
@@ -222,7 +224,7 @@ calculate_charges(struct Molecules &molecules, const std::string &method_name, s
             charges[mol.name()] = results;
         }
     }
-
+    
     save_charges(molecules, idk, molecules.input_file);
 
     dlclose(handle);
@@ -234,12 +236,20 @@ void save_charges(const Molecules &molecules, const Charges &charges, const std:
     std::filesystem::path dir(config::chg_out_dir);
     auto file_path = std::filesystem::path(filename);
     auto ext = file_path.extension().string();
-    auto txt_str = file_path.filename().string() + ".txt"; 
     
     config::input_file = filename;
-    fmt::print("Saving results to {}\n", molecules.input_file);
     CIF().save_charges(molecules.ms, charges, molecules.input_file);
+    
+    auto txt_str = file_path.filename().string() + ".txt"; 
     TXT().save_charges(molecules.ms, charges, dir / std::filesystem::path(txt_str));
+
+    if (molecules.ms.has_proteins()) {
+        auto pqr_str = file_path.filename().string() + ".pqr";
+        PQR().save_charges(molecules.ms, charges, dir / std::filesystem::path(pqr_str));
+    } else {
+        auto mol2_str = file_path.filename().string() + ".mol2";
+        Mol2().save_charges(molecules.ms, charges, dir / std::filesystem::path(mol2_str));
+    }
 }
 
 
