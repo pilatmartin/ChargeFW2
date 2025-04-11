@@ -57,10 +57,9 @@ struct PythonMethodMetadata : public MethodMetadata {
 
 struct Molecules {
     MoleculeSet ms;
+    std::string input_file;
 
     Molecules(const std::string &filename, bool read_hetatm, bool ignore_water, bool permissive_types);
-
-    std::string input_file;
 
     [[nodiscard]] size_t length() const;
     [[nodiscard]] MoleculeSetStats info();
@@ -172,7 +171,7 @@ std::optional<ParametersMetadata> get_best_parameters(struct Molecules &molecule
 std::map<std::string, std::vector<double>>
 calculate_charges(struct Molecules &molecules, const std::string &method_name, std::optional<const std::string> &parameters_name, std::optional<const std::string> &chg_out_dir) {
     config::chg_out_dir = chg_out_dir.value_or(".");
-
+    
     Method* method;
     try {
         method = load_method(method_name);
