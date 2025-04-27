@@ -16,7 +16,6 @@
 #include "utility/strings.h"
 #include "exceptions/file_exception.h"
 
-
 namespace fs = std::filesystem;
 namespace py = pybind11;
 using namespace pybind11::literals;
